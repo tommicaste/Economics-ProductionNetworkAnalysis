@@ -1,0 +1,27 @@
+%%%%%%%%%%%%%% HOW TO ME FILE 
+%%%%%%%%%%%%%% MATLAB CODE OF "SECTORAL EFFECT OF SOCIAL DISTANCING" (Barrot, Grassi and, Sauvagnat)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%% Add a labor supply shocks scenario
+
+Just copy-paste in the next column available in data_deep/Data_US_BEA405_DEC2020_laborsupply.xlsx the list of labor shocks. Note that these labor shocks need to be given in the same order of the BEA classification given in the first column of this file. Give a name to the first line of the column [name_shock]
+
+Then run in matlab the file main_BEA504.m or just the line which contains exercice_hat_fun_nicefigure(theta,sigma,epsilon,0.95,'US_BEA504_hat','Data_US_BEA405_DEC2020',1).
+
+In the folder export you should find an excel file whose name contains [name_shock], the name of the colum of your labor_suply shock. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%% Add a demand shocks scenario
+
+Just copy-paste in the next column available in data_deep/Data_US_BEA405_DEC2020_demand.xlsx the list of demand shocks. Note that these demand shocks need to be given in the same order of the BEA classification given in the first column of this file. Give a name to the first line of the column [name_shock]
+
+Then run in matlab the file main_BEA504.m or just the line which contains exercice_hat_fun_nicefigure(theta,sigma,epsilon,0.95,'US_BEA504_hat','Data_US_BEA405_DEC2020',1).
+
+In the folder export you should find an excel file whose name contains [name_shock], the name of the colum of your demand shock. 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%% Use a different Input-Output matrix
+
+Modify the IMPORT DATA section of lib/calibrate_BEA504_hat_fun.m to replace the data used here. The comments and variable names should be self-explanatory. 

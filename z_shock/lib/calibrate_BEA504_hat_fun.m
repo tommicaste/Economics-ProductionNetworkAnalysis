@@ -1,0 +1,306 @@
+%% Calibrate the model in "Sectoral Effect of Social Distancing"
+
+%% Copyright: Jean-Noel Barrot, Basile Grassi and Julien Sauvagnat
+%%AEA Paper and Procedings May 2021
+%%Solving the model in BGS (AEA P&P) and performing exercice for various labor supply shocks
+%%This version: the AEA P&P
+%%Corresponding author: Basile Grassi
+
+
+
+function calibrate_BEA504_hat_fun(theta,sigma,epsilon)
+
+%% I %%%%%%%%%%%%%%%%%%%%%% Import DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    disp('%% I %%%%%%%%%%%%%%%%%%%%%% Import DATA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    tic;
+    %final consumption
+        pfi= xlsread('data_deep/WIOT2014.xlsx','2014bis','BL2:BT63');
+        pfi=sum(pfi,2);
+        pfi(isnan(pfi))=0;  
+        
+        pfi(pfi<0) = 0;
+        
+        %get rid of ITA-U and ITA-T because of a null I-O table
+        pfi=pfi([1:54, 57:end]);
+
+
+    %IO
+        OmegaRaw = xlsread('data_deep/WIOT2014.xlsx','2014bis','B2:BK63');
+        OmegaRaw((OmegaRaw)<0)=0;
+        OmegaRaw=OmegaRaw';
+        
+        %get rid of ITA-U and ITA-T because of a null I-O table
+        OmegaRaw=OmegaRaw([1:54, 57:end],[1:54, 57:end]);
+        
+        pxij = OmegaRaw;
+        pmXi = sum(pxij,2);
+        
+    %total output 
+        pyi = sum(pxij,1)' + pfi;         
+        
+    %number of sectors
+        N=length(pxij);
+
+    %normalized the matrix
+        Gamma=zeros(size(pxij));
+        for i=1:N
+            Gamma(i,:) = pxij(i,:) ./ pyi(i);
+        end
+  
+    
+    %Labor income share in Value Added 
+        %sectoral data
+        empcomp = xlsread('data_deep/WIOT2014.xlsx','2014bis','B66:BK66');
+        va = xlsread('data_deep/WIOT2014.xlsx','2014bis','B67:BK67');
+        wli_over_vhi = (empcomp./va)';
+    %Italian GDP
+        va=va';
+        va=va(1:54);
+        w=va./sum(va);
+        
+        %get rid of "Customs duties"
+        wli_over_vhi=wli_over_vhi([1:54, 57:end]);
+        
+        
+
+    %%Load sector description
+        %Long description and code
+        [sector_code_num,sector_info_txt,sector_info]=xlsread('data_deep/WIOT2014.xlsx','Countries','A46:C107');
+        
+        sector_code=cell(length(sector_info),1);
+        for k=1:length(sector_info)
+            if isempty(sector_info_txt{k,1})
+                sector_code{k} = num2str(sector_info{k,1});
+            else
+                sector_code{k}=sector_info_txt{k,1};
+            end
+             
+            %sector_code=sector_info_raw(:,1);
+        end
+        
+        sector_descriptionfrench=sector_info_txt(:,3);
+        sector_shortdescription=sector_info_txt(:,2);
+
+        sector_code=sector_code([1:54, 57:end]);
+        sector_descriptionfrench=sector_descriptionfrench([1:54, 57:end]);
+        sector_shortdescription=sector_shortdescription([1:54, 57:end]);
+
+        
+    toc;
+    
+    %% II %%%%%%%%%%%%%%%%%%%%%% Calibrate Parameters %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    disp('%% II %%%%%%%%%%%%%%%%%%%%%% Calibrate Parameters  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    tic;
+    
+    %Omega,eta,phi,Delta,psi
+    
+    %%% Omega_ij = share of j in total intermediate inputs cost by i
+    % Omega=zeros(size(pxij));
+    % for i=1:N
+    %     Omega(i,:) = pxij(i,:) ./ pmXi(i);
+    % end
+    Omega = diag( pmXi.^(-1) ) * pxij;
+        
+    %%% eta_i = value added share (of revenue) in sector i
+    eta = 1 - pmXi./pyi ;
+    
+    %%% phi_i = share of final demand i in total output of i
+    phi = pfi ./ pyi;
+    
+    %%% Delta_ij =  expenditure on j by i as a share of total production of j
+    % Delta=zeros(size(pxij));
+    % for i=1:N
+    %     for j=1:N
+    %         Delta(i,j) = pxij(i,j) ./ pyi(j);
+    %     end
+    % end
+    Delta = pxij * diag( pyi.^(-1) ) ;
+    
+    %%% psi_i = share of final demand i in to total final demand
+    psi = pfi ./sum( pfi);
+    
+    %%% gamma_i = labor income share in value added in sector i
+    gamma = wli_over_vhi;
+    
+    %%% sector labor income over GDP
+    %Labor income relative to GDP
+    va = pyi - pmXi;
+    %wli_over_GDP
+    lambda = wli_over_vhi.*va./sum(pfi);
+    %rli_over_GDP
+    rho = (1-wli_over_vhi).*va./sum(pfi);
+    
+    
+    
+    toc;
+    
+    %% III %%%%%%%%%%%%%%%%%%%%%% Test: Equilibrium %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    disp('%% III %%%%%%%%%%%%%%%%%%%%%% Test: Equilibrium %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    tic;
+    
+    
+    
+    options = optimset('Display','Iter','MaxFunEvals',N*1000,'MaxIter',1000);
+    %options.MaxFunEvals = 10^6;
+    %options.MaxIter = 100;
+
+    if nargin >0
+    else
+        disp('Test for Baseline Calibration')
+        sigma =  0.9; 
+        theta =  0.5;
+        epsilon= 0.001;        
+    end
+    disp(table(sigma, theta, epsilon))
+    
+    %Productivity Shock
+    zi_hat = ones(N,1);
+    ki_hat = ones(N,1);
+    %li_hat = ones(N,1);
+    rng(666)
+    li_hat = 0.3 + (1-0.3).*rand(N,1);
+    %demand shocks
+    betai_hat = randn(N,1);
+    betai_hat = betai_hat./sum(betai_hat) +1;
+    %betai_hat = betai_hat.*(betai_hat>0.1);
+    %betai_hat  = betai_hat ./ sum(betai_hat);
+    
+    
+    
+    
+    
+    %Solve the equilibrium for a random labor supply shock
+    %[RES] = RES_hat_eq(lvec,zi_hat,li_hat,ki_hat,theta,sigma,epsilon,N, Omega,eta,phi,Delta,psi)
+    
+    
+    fun_solve_CD = @(lvec)  RES_hat_eq(lvec,zi_hat,li_hat,ki_hat,betai_hat,1,1,1,N, Omega,eta,gamma,phi,Delta,psi,w) ;
+    %Calls the RES function, lvec is the vecotr of unknowns Nx1 prices, Nx1 outputs and 1x1 PsigmaYhat, the varibales with the hat name are
+    %exogenous (productivity, labor, capital and demand shock), theta sigma
+    %and epsilon are set to one in this case, the last 6 terms are the
+    %calibrated parameters)
+    fun_solve_CD_nodemand = @(lvec)  RES_hat_eq(lvec,zi_hat,li_hat,ki_hat,ones(N,1),1,1,1,N, Omega,eta,gamma,phi,Delta,psi,w) ;
+    fun_solve_nodemand = @(lvec)  RES_hat_eq(lvec,zi_hat,li_hat,ki_hat,ones(N,1),theta,sigma,epsilon,N, Omega,eta,gamma,phi,Delta,psi,w) ;
+    fun_solve = @(lvec)  RES_hat_eq(lvec,zi_hat,li_hat,ki_hat,betai_hat,theta,sigma,epsilon,N, Omega,eta,gamma,phi,Delta,psi,w) ;
+    
+    %Cobb-Douglas
+    disp('Solving for Cobb Douglas...')
+    lvec_CD = fsolve(fun_solve_CD,zeros(2*N+1,1),options);
+    [RES_CD,GDP_hat_CD,Equi_hat_CD]= fun_solve_CD(lvec_CD);
+    GDP_hat_CD= Equi_hat_CD.GDPIta;
+    
+    %Cobb-Douglas no demand
+    disp('Solving for Cobb Douglas...')
+    lvec_CD_nodemand = fsolve(fun_solve_CD_nodemand,zeros(2*N+1,1),options);
+    [RES_CD_nodemand,GDP_hat_CD_nodemand,Equi_hat_CD_nodemand]= fun_solve_CD_nodemand(lvec_CD_nodemand);
+    GDP_hat_CD_nodemand= Equi_hat_CD_nodemand.GDPIta;
+    
+    %Full Model no demand
+    disp('Solving for parameters...')
+    disp(table(sigma, theta, epsilon))
+    lvec_nodemand_eq = fsolve(fun_solve_nodemand,lvec_CD_nodemand,options);
+    [RES_nodemand,GDP_nodemand_hat,Equi_nodemand_hat]= fun_solve_nodemand(lvec_nodemand_eq);
+    GDP_nodemand_hat= Equi_nodemand_hat.GDPIta;
+
+    %Full Model
+    disp('Solving for parameters...')
+    disp(table(sigma, theta, epsilon))
+    lvec_eq = fsolve(fun_solve,lvec_CD,options);
+    [RES,GDP_hat,Equi_hat]= fun_solve(lvec_eq);
+    GDP_hat= Equi_hat.GDPIta;
+    
+    disp('GDP change follow3ing a (random) labor supply shock')
+    disp(table(GDP_hat_CD,GDP_hat_CD_nodemand,GDP_nodemand_hat, GDP_hat))
+    
+    
+    
+    toc;
+    
+%% IV %%%%%%%%%%%%%%%%%%%%%% Networks Stats %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('%% IV %%%%%%%%%%%%%%%%%%%%%% Networks Stats %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+tic;
+
+%Outdegree
+outdegree = ones(N,1)'* Gamma; 
+outdegree=outdegree';
+
+%Centrality
+centrality = (pfi ./sum(pfi))'*inv( eye(N) - Gamma );
+centrality=centrality';
+
+%Upstreamness
+upstreamness = inv( eye(N) - diag( pyi.^(-1) ) * Gamma' * diag( pyi )  )*ones(N,1);
+
+%Domar weights
+domar = pyi./sum(pfi);
+
+tablestats = table(sector_code, sector_shortdescription, outdegree, centrality , upstreamness, domar  );
+%disp(tablestats)
+
+filename_export = [ 'export/US_BEA504_network_stats.xlsx' ];
+delete(filename_export)
+writetable(tablestats,filename_export,'Range','A1')
+
+    
+toc;
+%% V %%%%%%%%%%%%%%%%%%%%%% Save %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+disp('%% V %%%%%%%%%%%%%%%%%%%%%% Save  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+tic;
+
+
+
+    %%Data
+    Data.N = N;
+    Data.pfi = pfi;
+    Data.pxij=pxij;
+    Data.pmXi=pmXi;
+    Data.pyi=pyi;
+    Data.wli_over_vhi = wli_over_vhi;
+    
+
+    Data.Gamma=Gamma;
+
+    Data.sector_code=sector_code;
+    Data.sector_descriptionfrench=sector_descriptionfrench;
+    Data.sector_shortdescription=sector_shortdescription;
+
+
+    %%Calibrated parameters
+    Cali.N = N;
+    
+    Cali.Omega=Omega;
+    Cali.eta=eta;
+    Cali.phi=phi;
+    Cali.Delta=Delta;
+    Cali.psi=psi;
+    Cali.gamma=gamma;
+    Cali.lambda=lambda;
+    Cali.rho=rho;
+    Cali.w=w;
+    
+    Kappa = inv(eye(N)-Delta);
+    
+    table_data = table(sector_code, sector_shortdescription, eta  , phi  , psi , gamma, lambda, rho   );
+    
+    filename_export = [ 'export/US_BEA504_data.xlsx' ];
+    delete(filename_export)
+    writetable(table_data,filename_export,'Sheet','Para','Range','A1');    
+    writetable(table(sector_code,Delta),filename_export,'Sheet','Delta','Range','A1');
+    writetable(table(sector_code,Omega),filename_export,'Sheet','Omega','Range','A1');
+    writetable(table(sector_code,Kappa),filename_export,'Sheet','Kappa','Range','A1');
+
+    
+    
+    %%Networks statistics
+    Stats.outdegree=outdegree;
+    Stats.centrality=centrality;
+    Stats.upstreamness=upstreamness;
+    Stats.domar=domar;
+
+    %%Saving
+    filename = ['data_matlab/US_BEA504_hat' ];
+    disp(['save using ' filename])
+    save(filename,'Cali','Data','Stats') 
+
+toc;
+    
+end
